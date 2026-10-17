@@ -68,6 +68,27 @@ def test_frontend_submits_scenario_with_recurring_withdrawal() -> None:
     assert len(at.dataframe) == 2
 
 
+def test_frontend_generates_pdf_from_last_simulation() -> None:
+    calls: list[dict] = []
+
+    def fake_api(url: str, payload: dict) -> dict:
+        return TestClient(app).post("/api/simulate", json=payload).json()
+
+    def fake_pdf(url: str, payload: dict) -> bytes:
+        calls.append(payload)
+        response = TestClient(app).post("/api/report", json=payload)
+        assert response.status_code == 200
+        return response.content
+
+    with patch("frontend.client.simulate", side_effect=fake_api), patch("frontend.client.download_report", side_effect=fake_pdf):
+        at = AppTest.from_file(Path(__file__).resolve().parents[1] / "frontend/app.py").run()
+        next(button for button in at.button if button.label == "Simular projeção").click().run()
+        next(button for button in at.button if button.label == "Gerar relatório PDF").click().run()
+    assert not at.exception
+    assert calls[0]["monthly_contribution"] == "500.00"
+    assert at.session_state.report_pdf.startswith(b"%PDF-")
+
+
 def test_api_validation_message_is_shown_to_user() -> None:
     request = httpx.Request("POST", "http://localhost/api/simulate")
     response = httpx.Response(422, request=request, json={"detail": [

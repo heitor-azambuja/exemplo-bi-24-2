@@ -1,8 +1,10 @@
 """HTTP entry point for investment simulations."""
 
 from fastapi import FastAPI
+from fastapi.responses import Response
 
 from backend.calculator import monthly_rate, simulate_scenarios
+from backend.report import create_pdf
 from backend.schemas import SimulationRequest
 
 app = FastAPI(title="Simulador de investimentos", version="0.1.0")
@@ -30,3 +32,18 @@ def simulate(request: SimulationRequest) -> dict:
         },
         **simulate_scenarios(config, scenarios),
     }
+
+
+@app.post(
+    "/api/report", summary="Gerar relatório PDF da simulação", response_class=Response,
+    responses={200: {"description": "PDF do investimento", "content": {"application/pdf": {}}}},
+)
+def report(request: SimulationRequest) -> Response:
+    """Render the same calculations as /api/simulate into a downloadable PDF."""
+    data = simulate(request)
+    return Response(
+        content=create_pdf(data),
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="relatorio-investimento.pdf"',
+                 "Cache-Control": "no-store"},
+    )
