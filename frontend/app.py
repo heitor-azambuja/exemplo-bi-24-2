@@ -7,7 +7,7 @@ from uuid import uuid4
 import httpx
 import streamlit as st
 
-from frontend.client import describe_error, simulate
+from frontend.client import describe_error, download_report, simulate
 from frontend.visualizations import BASE_NAME, balance_chart, composition_chart, currency, monthly_table, summary_table
 
 API_URL = os.getenv("API_URL", "http://localhost:8000").rstrip("/")
@@ -30,6 +30,10 @@ if "scenarios" not in st.session_state:
     st.session_state.scenarios = []
 if "result" not in st.session_state:
     st.session_state.result = None
+if "last_payload" not in st.session_state:
+    st.session_state.last_payload = None
+if "report_pdf" not in st.session_state:
+    st.session_state.report_pdf = None
 
 st.title("Investimento composto")
 st.caption("Planeje aportes, compare retiradas e acompanhe cada mês do seu investimento.")
@@ -111,6 +115,8 @@ if not st.session_state.scenarios:
 st.divider()
 if st.button("Simular projeção", type="primary", width="stretch"):
     st.session_state.result = None
+    st.session_state.last_payload = None
+    st.session_state.report_pdf = None
     payload = {
         "monthly_contribution": f"{monthly:.2f}",
         "one_time_contribution": f"{lump:.2f}",
@@ -122,6 +128,7 @@ if st.button("Simular projeção", type="primary", width="stretch"):
     try:
         with st.spinner("Calculando projeção..."):
             st.session_state.result = simulate(API_URL, payload)
+            st.session_state.last_payload = payload
     except httpx.HTTPError as exc:
         st.error(describe_error(exc))
     except (ValueError, KeyError) as exc:
@@ -159,3 +166,21 @@ if st.session_state.result is not None:
     st.subheader("Evolução mensal")
     st.dataframe(monthly_table(selected_result), hide_index=True, width="stretch",
                  height=min(500, 45 + 35 * len(selected_result["months"])))
+
+    st.divider()
+    st.subheader("Relatório do investimento")
+    if st.button("Gerar relatório PDF", type="secondary"):
+        st.session_state.report_pdf = None
+        try:
+            with st.spinner("Preparando relatório..."):
+                last_payload = st.session_state.last_payload
+                if last_payload is None:
+                    raise ValueError("Simule novamente antes de gerar o relatório.")
+                st.session_state.report_pdf = download_report(API_URL, last_payload)
+        except httpx.HTTPError as exc:
+            st.error(describe_error(exc))
+        except ValueError as exc:
+            st.error(str(exc))
+    if st.session_state.report_pdf is not None:
+        st.download_button("Baixar relatório PDF", data=st.session_state.report_pdf,
+                           file_name="relatorio-investimento.pdf", mime="application/pdf")

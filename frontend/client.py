@@ -10,6 +10,15 @@ def simulate(api_url: str, payload: dict) -> dict:
     return response.json()
 
 
+def download_report(api_url: str, payload: dict) -> bytes:
+    """Request the PDF for the same inputs used by the visible simulation."""
+    response = httpx.post(f"{api_url.rstrip('/')}/api/report", json=payload, timeout=60)
+    response.raise_for_status()
+    if not response.headers.get("content-type", "").startswith("application/pdf") or not response.content.startswith(b"%PDF-"):
+        raise ValueError("A API não retornou um PDF válido.")
+    return response.content
+
+
 def describe_error(exc: httpx.HTTPError) -> str:
     """Turn API validation details into concise Portuguese feedback."""
     if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 422:
