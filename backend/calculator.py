@@ -85,6 +85,13 @@ def monthly_rate(annual_rate_pct: Decimal) -> Decimal:
 
 
 def _run(config: InvestmentInput, withdrawals: tuple[Withdrawal, ...] = ()) -> dict:
+    # Large but valid horizons/rates can exceed Decimal's default 28-digit context.
+    with localcontext() as context:
+        context.prec = 100
+        return _run_precise(config, withdrawals)
+
+
+def _run_precise(config: InvestmentInput, withdrawals: tuple[Withdrawal, ...]) -> dict:
     rate = monthly_rate(config.annual_rate_pct)
     balance = Decimal(0)
     contributions = Decimal(0)
