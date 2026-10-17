@@ -53,6 +53,17 @@ def test_report_rejects_invalid_request() -> None:
     assert client.post("/api/report", json=payload).status_code == 422
 
 
+def test_report_handles_large_valid_projection_with_a_scenario() -> None:
+    payload = request_data(months=600)
+    payload["monthly_contribution"] = "1000000000000.00"
+    payload["annual_rate_pct"] = "1000"
+    simulation = client.post("/api/simulate", json=payload)
+    assert simulation.status_code == 200
+    response = client.post("/api/report", json=payload)
+    assert response.status_code == 200
+    assert response.content.startswith(b"%PDF-")
+
+
 def test_report_handles_a_long_table_and_a_single_month() -> None:
     payload = request_data(months=60)
     response = client.post("/api/report", json=payload)

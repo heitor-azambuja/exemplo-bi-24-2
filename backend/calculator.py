@@ -13,7 +13,9 @@ MAX_AMOUNT = Decimal("1000000000000")
 
 def money(value: Decimal) -> Decimal:
     """Round a monetary amount to cents using commercial half-up rounding."""
-    return value.quantize(CENT, rounding=ROUND_HALF_UP)
+    with localcontext() as context:
+        context.prec = 100
+        return value.quantize(CENT, rounding=ROUND_HALF_UP)
 
 
 @dataclass(frozen=True)
@@ -159,6 +161,8 @@ def simulate_scenarios(config: InvestmentInput, scenarios: tuple[Scenario, ...] 
             raise ValueError(f"As retiradas de '{scenario.name}' devem estar dentro do prazo.")
         result = _run(config, scenario.withdrawals)
         result["name"] = scenario.name.strip()
-        result["summary"]["difference_from_base"] = str(money(Decimal(result["summary"]["final_balance"]) - base_balance))
+        with localcontext() as context:
+            context.prec = 100
+            result["summary"]["difference_from_base"] = str(money(Decimal(result["summary"]["final_balance"]) - base_balance))
         results.append(result)
     return {"base": base, "scenarios": results}
