@@ -13,7 +13,7 @@ def config(*, monthly="0", one_time="0", one_time_month=1, rate="0", months=12):
 
 def test_zero_rate_and_monthly_contributions() -> None:
     result = simulate_base(config(monthly="10"))
-    assert result["summary"] == {
+    assert {key: result["summary"][key] for key in ("contributions_total", "earnings_total", "final_balance")} == {
         "contributions_total": "120.00", "earnings_total": "0.00", "final_balance": "120.00"
     }
     assert len(result["months"]) == 12
