@@ -64,7 +64,8 @@ def test_frontend_submits_scenario_with_recurring_withdrawal() -> None:
     event = calls[0]["scenarios"][0]["withdrawals"][0]
     assert event == {"kind": "recurring", "amount": "100.00", "start_month": 1,
                      "end_month": 120, "interval_months": 1}
-    assert len(at.metric) == 1
+    assert len(at.metric) == 3
+    assert len(at.dataframe) == 2
 
 
 def test_api_validation_message_is_shown_to_user() -> None:

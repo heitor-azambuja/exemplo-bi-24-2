@@ -8,6 +8,7 @@ import httpx
 import streamlit as st
 
 from frontend.client import describe_error, simulate
+from frontend.visualizations import BASE_NAME, balance_chart, composition_chart, currency, monthly_table, summary_table
 
 API_URL = os.getenv("API_URL", "http://localhost:8000").rstrip("/")
 
@@ -19,11 +20,6 @@ h1, h2, h3 { letter-spacing: -0.025em; }
 [data-testid="stMetric"] { border: 1px solid #304057; border-radius: 14px; padding: 1.1rem; background: #141f32; }
 </style>
 """, unsafe_allow_html=True)
-
-
-def currency(value: str) -> str:
-    formatted = f"{Decimal(value):,.2f}"
-    return "R$ " + formatted.replace(",", "_").replace(".", ",").replace("_", ".")
 
 
 def new_item() -> dict:
@@ -59,7 +55,7 @@ with heading:
     st.subheader("Cenários de retirada")
     st.caption("Compare até 10 planos independentes com a projeção sem retiradas.")
 with action:
-    if st.button("＋ Novo cenário", use_container_width=True, disabled=len(st.session_state.scenarios) >= 10):
+    if st.button("＋ Novo cenário", width="stretch", disabled=len(st.session_state.scenarios) >= 10):
         st.session_state.scenarios.append({"id": uuid4().hex, "withdrawals": []})
         st.rerun()
 
@@ -113,7 +109,7 @@ if not st.session_state.scenarios:
     st.caption("Nenhum cenário cadastrado. A simulação mostrará somente a projeção-base.")
 
 st.divider()
-if st.button("Simular projeção", type="primary", use_container_width=True):
+if st.button("Simular projeção", type="primary", width="stretch"):
     st.session_state.result = None
     payload = {
         "monthly_contribution": f"{monthly:.2f}",
@@ -135,8 +131,31 @@ if st.session_state.result is not None:
     data = st.session_state.result
     st.subheader("Resultado da última simulação")
     st.caption("Altere os parâmetros e simule novamente para atualizar esta projeção.")
-    st.metric("Saldo final sem retiradas", currency(data["base"]["summary"]["final_balance"]))
+    base_summary = data["base"]["summary"]
+    first, second, third = st.columns(3)
+    first.metric("Saldo final sem retiradas", currency(base_summary["final_balance"]))
+    second.metric("Total aportado", currency(base_summary["contributions_total"]))
+    third.metric("Rendimento acumulado", currency(base_summary["earnings_total"]))
+
     for scenario in data["scenarios"]:
-        st.write(f"{scenario['name']}: {currency(scenario['summary']['final_balance'])}")
         if Decimal(scenario["summary"]["unmet_withdrawal_total"]) > 0:
             st.warning(f"{scenario['name']}: retiradas não atendidas de {currency(scenario['summary']['unmet_withdrawal_total'])}.")
+
+    st.subheader("Evolução do saldo")
+    st.altair_chart(balance_chart(data), width="stretch")
+    st.caption("Linha contínua: projeção-base. Linhas tracejadas: cenários de retirada.")
+
+    st.subheader("Comparação dos cenários")
+    st.dataframe(summary_table(data), hide_index=True, width="stretch")
+
+    choices = [BASE_NAME] + [scenario["name"] for scenario in data["scenarios"]]
+    selected = st.selectbox("Detalhar cenário", choices)
+    selected_result = data["base"] if selected == BASE_NAME else next(
+        scenario for scenario in data["scenarios"] if scenario["name"] == selected
+    )
+    st.subheader("Composição do saldo")
+    st.caption("Aportes líquidos = aportes acumulados menos retiradas efetivas; valores negativos são exibidos.")
+    st.altair_chart(composition_chart(selected_result), width="stretch")
+    st.subheader("Evolução mensal")
+    st.dataframe(monthly_table(selected_result), hide_index=True, width="stretch",
+                 height=min(500, 45 + 35 * len(selected_result["months"])))
